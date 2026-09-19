@@ -1,30 +1,56 @@
-import { Response } from "express";
+// src/controllers/notesController.ts
+import { Request, Response, NextFunction } from "express";
 import Note from "../models/Note";
-import { AuthRequest } from "../middleware/authMiddleware";
 
-export const createNote = async (req: AuthRequest, res: Response) => {
-
- const note = await Note.create({
-   title: req.body.title,
-   content: req.body.content,
-   user: req.user.id
- });
-
- res.json(note);
+// Get all notes for a user
+export const getNotes = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const notes = await Note.find({ user: req.user!.id });
+    res.json(notes);
+  } catch (error) {
+    next(error); // send to global error handler
+  }
 };
 
-export const getNotes = async (req: AuthRequest, res: Response) => {
+// Create a new note
+export const createNote = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { title, content } = req.body;
 
- const notes = await Note.find({
-   user: req.user.id
- });
-
- res.json(notes);
+    const note = await Note.create({ user: req.user!.id, title, content });
+    res.status(201).json(note);
+  } catch (error) {
+    next(error);
+  }
 };
 
-export const deleteNote = async (req: AuthRequest, res: Response) => {
+// Update an existing note
+export const updateNote = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    if (!note) return res.status(404).json({ message: "Note not found" });
+    if (note.user.toString() !== req.user!.id) return res.status(401).json({ message: "Unauthorized" });
 
- await Note.findByIdAndDelete(req.params.id);
+    note.title = req.body.title || note.title;
+    note.content = req.body.content || note.content;
 
- res.json({ message: "Note deleted" });
+    const updatedNote = await note.save();
+    res.json(updatedNote);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete a note
+export const deleteNote = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    if (!note) return res.status(404).json({ message: "Note not found" });
+    if (note.user.toString() !== req.user!.id) return res.status(401).json({ message: "Unauthorized" });
+
+    await note.deleteOne(); // safe deletion
+    res.json({ message: "Note deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
 };
